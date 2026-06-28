@@ -1,0 +1,167 @@
+{
+  "info": {
+    "name": "Clinic Scheduling Platform — Azure",
+    "description": "Colección de pruebas para la API de agendamiento migrada a Azure.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Appointments",
+      "item": [
+        {
+          "name": "POST /appointments — Perú (PE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.test('Response has appointmentId', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.appointmentId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(body.status).to.eql('pending');",
+                  "    pm.collectionVariables.set('appointmentId', body.appointmentId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"insuredId\": \"12345\",\n  \"scheduleId\": 10,\n  \"countryISO\": \"PE\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "POST /appointments — Chile (CL)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.test('Response has appointmentId', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.appointmentId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(body.status).to.eql('pending');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"insuredId\": \"67890\",\n  \"scheduleId\": 22,\n  \"countryISO\": \"CL\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "POST /appointments — 400 countryISO inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Response has error field', () => {",
+                  "    pm.expect(pm.response.json().error).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"insuredId\": \"12345\",\n  \"scheduleId\": 10,\n  \"countryISO\": \"MX\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "POST /appointments — 400 scheduleId inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"insuredId\": \"12345\",\n  \"scheduleId\": 0,\n  \"countryISO\": \"PE\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "GET /appointments/{insuredId}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is an array', () => {",
+                  "    pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/12345",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "12345"]
+            }
+          }
+        },
+        {
+          "name": "GET /appointments/{insuredId} — lista vacía",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Empty array for unknown insuredId', () => {",
+                  "    pm.expect(pm.response.json()).to.eql([]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/NONEXISTENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "NONEXISTENT"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "appointmentId", "value": "" }
+  ]
+}

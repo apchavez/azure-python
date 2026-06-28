@@ -1,0 +1,181 @@
+openapi: 3.0.3
+info:
+  title: Clinic Scheduling Platform — Azure
+  description: >
+    API para la plataforma de agendamiento de citas médicas migrada a Azure.
+    Expone dos endpoints HTTP; el procesamiento interno es event-driven vía Service Bus.
+  version: 1.0.0
+  contact:
+    name: Clinic Platform Team
+
+servers:
+  - url: https://func-clinic-dev.azurewebsites.net/api
+    description: Desarrollo (Azure)
+  - url: http://localhost:7071/api
+    description: Local (Azure Functions Core Tools)
+
+tags:
+  - name: Appointments
+    description: Gestión de citas médicas
+
+paths:
+  /appointments:
+    post:
+      tags: [Appointments]
+      summary: Crear una cita médica
+      description: >
+        Recibe una solicitud de cita, la persiste en estado PENDING en Cosmos DB
+        y publica un evento en Service Bus para su procesamiento asíncrono por
+        el worker del país correspondiente (PE o CL).
+      operationId: createAppointment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+            examples:
+              peru:
+                summary: Cita para Perú
+                value:
+                  insuredId: "12345"
+                  scheduleId: 10
+                  countryISO: "PE"
+              chile:
+                summary: Cita para Chile
+                value:
+                  insuredId: "67890"
+                  scheduleId: 22
+                  countryISO: "CL"
+      responses:
+        '202':
+          description: Cita recibida y encolada para procesamiento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAppointmentResponse'
+        '400':
+          description: Request inválido (campos faltantes o countryISO no soportado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid request: insuredId, scheduleId>=1 and countryISO in [PE,CL] are required"
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /appointments/{insuredId}:
+    get:
+      tags: [Appointments]
+      summary: Obtener citas de un asegurado
+      description: Retorna todas las citas (PENDING y COMPLETED) asociadas al insuredId dado, consultando Cosmos DB.
+      operationId: getAppointments
+      parameters:
+        - name: insuredId
+          in: path
+          required: true
+          description: Identificador del asegurado
+          schema:
+            type: string
+            example: "12345"
+      responses:
+        '200':
+          description: Lista de citas del asegurado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Appointment'
+        '400':
+          description: insuredId vacío o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateAppointmentRequest:
+      type: object
+      required: [insuredId, scheduleId, countryISO]
+      properties:
+        insuredId:
+          type: string
+          description: Identificador único del asegurado
+          example: "12345"
+        scheduleId:
+          type: integer
+          minimum: 1
+          description: ID del horario seleccionado
+          example: 10
+        countryISO:
+          type: string
+          enum: [PE, CL]
+          description: País de la cita (Perú o Chile)
+          example: "PE"
+
+    CreateAppointmentResponse:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+          description: UUID generado para la cita
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        message:
+          type: string
+          example: "Appointment received"
+        status:
+          type: string
+          example: "pending"
+
+    Appointment:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        insuredId:
+          type: string
+          example: "12345"
+        scheduleId:
+          type: integer
+          example: 10
+        countryISO:
+          type: string
+          enum: [PE, CL]
+          example: "PE"
+        status:
+          type: string
+          enum: [PENDING, COMPLETED]
+          example: "COMPLETED"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-06-28T15:30:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-06-28T15:30:05Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Mensaje descriptivo del error
+          example: "Internal error processing appointment"
