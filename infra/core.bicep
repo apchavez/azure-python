@@ -75,8 +75,9 @@ resource completedTopic 'Microsoft.ServiceBus/namespaces/topics@2022-10-01-previ
 }
 
 // Country-specific subscriptions — each only receives messages for its country.
-// The publisher sets message.Subject = countryISO (e.g. "PE"), so the SQL filter
-// "sys.Subject = 'PE'" routes messages at the broker level, not in application code.
+// The publisher sets message.Subject = countryISO (e.g. "PE").
+// Strategy: override the auto-created $Default TrueFilter with a FalseFilter (1=0)
+// so it matches nothing, then add the real country SQL filter as the only active rule.
 resource subPE 'Microsoft.ServiceBus/namespaces/topics/subscriptions@2022-10-01-preview' = {
   parent: createdTopic
   name: 'pe-worker'
@@ -84,7 +85,16 @@ resource subPE 'Microsoft.ServiceBus/namespaces/topics/subscriptions@2022-10-01-
     maxDeliveryCount: 5
     deadLetteringOnMessageExpiration: true
     lockDuration: 'PT1M'
-    defaultRuleAction: 'drop'  // drop the default TrueFilter rule; replaced below
+  }
+}
+
+// Override the auto-created $Default TrueFilter with a no-match expression.
+resource subPEDefaultRule 'Microsoft.ServiceBus/namespaces/topics/subscriptions/rules@2022-10-01-preview' = {
+  parent: subPE
+  name: '$Default'
+  properties: {
+    filterType: 'SqlFilter'
+    sqlFilter: { sqlExpression: '1=0' }
   }
 }
 
@@ -104,7 +114,15 @@ resource subCL 'Microsoft.ServiceBus/namespaces/topics/subscriptions@2022-10-01-
     maxDeliveryCount: 5
     deadLetteringOnMessageExpiration: true
     lockDuration: 'PT1M'
-    defaultRuleAction: 'drop'
+  }
+}
+
+resource subCLDefaultRule 'Microsoft.ServiceBus/namespaces/topics/subscriptions/rules@2022-10-01-preview' = {
+  parent: subCL
+  name: '$Default'
+  properties: {
+    filterType: 'SqlFilter'
+    sqlFilter: { sqlExpression: '1=0' }
   }
 }
 
@@ -140,7 +158,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   tags: tags
   sku: { name: 'Standard_LRS' }
   kind: 'StorageV2'
-  properties: { minimumTlsVersion: 'TLS1_2', allowBlobPublicAccess: false, supportsHttpsTrafficOnly: true }
+  properties: { minimumTlsVersion: 'TLS1_2', allowBlobPublicAccess: false, supportsHttpsTrafficOnly: true, allowSharedKeyAccess: false }
 }
 
 // --- Azure SQL Database (final relational persistence) ---
@@ -224,7 +242,8 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
       ftpsState: 'Disabled'
       alwaysOn: true
       appSettings: [
-        { name: 'AzureWebJobsStorage', value: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};EndpointSuffix=${az.environment().suffixes.storage};AccountKey=${storage.listKeys().keys[0].value}' }
+        // Storage: Managed Identity — no account key in config
+        { name: 'AzureWebJobsStorage__accountName', value: storage.name }
         { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' }
         { name: 'FUNCTIONS_WORKER_RUNTIME', value: 'java' }
         { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' }
@@ -281,6 +300,41 @@ resource kvFuncRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(kv.id, functionApp.id, kvSecretsUserRoleId)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvSecretsUserRoleId)
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Storage role assignments — required for AzureWebJobsStorage with Managed Identity
+var storageBlobOwnerRoleId    = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
+var storageQueueContribRoleId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
+var storageTableContribRoleId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
+
+resource storageBlobRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: storage
+  name: guid(storage.id, functionApp.id, storageBlobOwnerRoleId)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobOwnerRoleId)
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource storageQueueRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: storage
+  name: guid(storage.id, functionApp.id, storageQueueContribRoleId)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageQueueContribRoleId)
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource storageTableRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: storage
+  name: guid(storage.id, functionApp.id, storageTableContribRoleId)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageTableContribRoleId)
     principalId: functionApp.identity.principalId
     principalType: 'ServicePrincipal'
   }

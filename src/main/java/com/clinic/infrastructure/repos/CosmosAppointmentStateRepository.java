@@ -3,6 +3,7 @@ package com.clinic.infrastructure.repos;
 import com.azure.cosmos.CosmosClient;
 import com.azure.cosmos.CosmosClientBuilder;
 import com.azure.cosmos.CosmosContainer;
+import com.azure.cosmos.CosmosException;
 import com.azure.cosmos.models.PartitionKey;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.clinic.domain.entities.Appointment;
@@ -45,8 +46,11 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
                     .readItem(appointmentId, new PartitionKey(appointmentId), AppointmentItem.class)
                     .getItem();
             return Optional.of(toDomain(item));
-        } catch (Exception e) {
-            return Optional.empty();
+        } catch (CosmosException e) {
+            if (e.getStatusCode() == 404) {
+                return Optional.empty();
+            }
+            throw new RuntimeException("Cosmos read failed (status " + e.getStatusCode() + "): " + e.getMessage(), e);
         }
     }
 
