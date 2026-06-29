@@ -49,6 +49,12 @@ paths:
                   azureSql: "UP"
                   serviceBus: "UP"
                 timestamp: "2026-06-28T15:00:00Z"
+        '400':
+          description: Solicitud malformada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '503':
           description: Una o más dependencias no responden
           content:
@@ -113,20 +119,98 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /appointments/{appointmentId}:
+  /appointments/{id}:
+    get:
+      tags: [Appointments]
+      summary: Obtener citas de un asegurado (paginado)
+      description: >
+        Retorna una página de citas (PENDING y COMPLETED) asociadas al insuredId dado,
+        consultando Cosmos DB con cursor-based pagination. Usa el campo `nextCursor`
+        de la respuesta como valor del parámetro `cursor` en la siguiente llamada.
+        En este endpoint, {id} corresponde al insuredId del asegurado.
+      operationId: getAppointments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador del asegurado (insuredId)
+          schema:
+            type: string
+            example: "12345"
+        - name: pageSize
+          in: query
+          required: false
+          description: Número de ítems por página (default 20, máximo 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+        - name: cursor
+          in: query
+          required: false
+          description: Continuation token obtenido del campo nextCursor de una respuesta anterior
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Página de citas del asegurado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentPage'
+              examples:
+                primera_pagina:
+                  summary: Primera página con más resultados
+                  value:
+                    items:
+                      - appointmentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                        insuredId: "12345"
+                        scheduleId: 10
+                        countryISO: "PE"
+                        status: "COMPLETED"
+                        createdAt: "2026-06-28T15:30:00Z"
+                        completedAt: "2026-06-28T15:30:05Z"
+                    nextCursor: "eyJpZCI6ImExYjJjM2Q0In0="
+                ultima_pagina:
+                  summary: Última página (sin más resultados)
+                  value:
+                    items:
+                      - appointmentId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                        insuredId: "12345"
+                        scheduleId: 22
+                        countryISO: "CL"
+                        status: "PENDING"
+                        createdAt: "2026-06-28T16:00:00Z"
+                        completedAt: null
+                    nextCursor: null
+        '400':
+          description: insuredId vacío o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       tags: [Appointments]
       summary: Cancelar una cita médica
       description: >
-        Cancela una cita en estado PENDING. Transición de estado: PENDING → CANCELLED.
+        Cancela una cita en estado PENDING. Transicion de estado: PENDING -> CANCELLED.
         Publica un evento APPOINTMENT_CANCELLED en Service Bus.
         Devuelve 409 si la cita no está en estado PENDING.
+        En este endpoint, {id} corresponde al UUID de la cita (appointmentId).
       operationId: cancelAppointment
       parameters:
-        - name: appointmentId
+        - name: id
           in: path
           required: true
-          description: UUID de la cita a cancelar
+          description: UUID de la cita a cancelar (appointmentId)
           schema:
             type: string
             format: uuid
@@ -145,6 +229,12 @@ paths:
                   appointmentId:
                     type: string
                     format: uuid
+        '400':
+          description: ID vacío o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Cita no encontrada
           content:
@@ -164,20 +254,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /appointments/{appointmentId}/history:
+  /appointments/{id}/history:
     get:
       tags: [Appointments]
       summary: Historial de eventos de una cita
       description: >
         Retorna el log de eventos inmutables de una cita ordenados por fecha de ocurrencia.
-        Cada transición de estado (creación, completado, cancelación, reagendado) genera
-        un documento de evento en Cosmos DB que nunca se modifica.
+        Cada transición de estado genera un documento de evento en Cosmos DB que nunca se modifica.
+        En este endpoint, {id} corresponde al UUID de la cita (appointmentId).
       operationId: getAppointmentHistory
       parameters:
-        - name: appointmentId
+        - name: id
           in: path
           required: true
-          description: UUID de la cita
+          description: UUID de la cita (appointmentId)
           schema:
             type: string
             format: uuid
@@ -221,7 +311,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /appointments/{appointmentId}/reschedule:
+  /appointments/{id}/reschedule:
     patch:
       tags: [Appointments]
       summary: Reagendar una cita médica
@@ -229,12 +319,13 @@ paths:
         Reagenda una cita en estado PENDING a un nuevo horario. La cita original queda
         marcada como RESCHEDULED y se crea una nueva cita en estado PENDING con el
         nuevo scheduleId, que fluye por el pipeline event-driven normal.
+        En este endpoint, {id} corresponde al UUID de la cita (appointmentId).
       operationId: rescheduleAppointment
       parameters:
-        - name: appointmentId
+        - name: id
           in: path
           required: true
-          description: UUID de la cita a reagendar
+          description: UUID de la cita a reagendar (appointmentId)
           schema:
             type: string
             format: uuid
@@ -255,7 +346,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RescheduleResponse'
         '400':
-          description: Request inválido (newScheduleId faltante o < 1)
+          description: Request inválido (newScheduleId faltante o menor a 1)
           content:
             application/json:
               schema:
@@ -268,84 +359,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: La cita no está en estado PENDING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Error interno
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /appointments/{insuredId}:
-    get:
-      tags: [Appointments]
-      summary: Obtener citas de un asegurado (paginado)
-      description: >
-        Retorna una página de citas (PENDING y COMPLETED) asociadas al insuredId dado,
-        consultando Cosmos DB con cursor-based pagination. Usa el campo `nextCursor`
-        de la respuesta como valor del parámetro `cursor` en la siguiente llamada.
-      operationId: getAppointments
-      parameters:
-        - name: insuredId
-          in: path
-          required: true
-          description: Identificador del asegurado
-          schema:
-            type: string
-            example: "12345"
-        - name: pageSize
-          in: query
-          required: false
-          description: Número de ítems por página (default 20, máximo 100)
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-            example: 20
-        - name: cursor
-          in: query
-          required: false
-          description: Continuation token obtenido del campo `nextCursor` de una respuesta anterior
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Página de citas del asegurado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppointmentPage'
-              examples:
-                primera_pagina:
-                  summary: Primera página con más resultados
-                  value:
-                    items:
-                      - appointmentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                        insuredId: "12345"
-                        scheduleId: 10
-                        countryISO: "PE"
-                        status: "COMPLETED"
-                        createdAt: "2026-06-28T15:30:00Z"
-                        completedAt: "2026-06-28T15:30:05Z"
-                    nextCursor: "eyJpZCI6ImExYjJjM2Q0In0="
-                ultima_pagina:
-                  summary: Última página (sin más resultados)
-                  value:
-                    items:
-                      - appointmentId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-                        insuredId: "12345"
-                        scheduleId: 22
-                        countryISO: "CL"
-                        status: "PENDING"
-                        createdAt: "2026-06-28T16:00:00Z"
-                        completedAt: null
-                    nextCursor: null
-        '400':
-          description: insuredId vacío o ausente
           content:
             application/json:
               schema:
