@@ -138,6 +138,23 @@ Full contract: [`src/docs/openapi.yaml`](src/docs/openapi.yaml)
 
 ---
 
+## Testing
+
+```bash
+mvn clean verify
+```
+
+Tests run entirely in memory -- no Azure account, no environment variables, and no network connection required.
+
+| Type | Scope | Description |
+|---|---|---|
+| Unit | Domain & Application | Use cases and entities with plain mocks -- zero Azure dependencies |
+| Architecture | All layers | Dependency rule enforced at build time: `api`/`infrastructure` -> `application` -> `domain` |
+
+JaCoCo enforces **>= 80% coverage** on the `domain` and `application` packages. Infrastructure adapters that require live Azure connections are excluded from the threshold.
+
+---
+
 ## Deploy
 
 The deploy is **exclusively manual** via GitHub Actions (`workflow_dispatch`). CI never provisions Azure resources.
