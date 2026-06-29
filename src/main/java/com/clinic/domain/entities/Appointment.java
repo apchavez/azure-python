@@ -16,6 +16,7 @@ public class Appointment {
     private AppointmentStatus status;
     private Instant createdAt;
     private Instant completedAt;
+    private Instant cancelledAt;
 
     public Appointment() {
     }
@@ -29,7 +30,6 @@ public class Appointment {
         this.createdAt = Instant.now();
     }
 
-    /** Business rule: an appointment can only be completed once, from PENDING. */
     public void markCompleted() {
         if (this.status != AppointmentStatus.PENDING) {
             throw new IllegalStateException(
@@ -37,6 +37,23 @@ public class Appointment {
         }
         this.status = AppointmentStatus.COMPLETED;
         this.completedAt = Instant.now();
+    }
+
+    public void markCancelled() {
+        if (this.status != AppointmentStatus.PENDING) {
+            throw new IllegalStateException(
+                    "Only a PENDING appointment can be cancelled (current: " + this.status + ")");
+        }
+        this.status = AppointmentStatus.CANCELLED;
+        this.cancelledAt = Instant.now();
+    }
+
+    public void markRescheduled() {
+        if (this.status != AppointmentStatus.PENDING) {
+            throw new IllegalStateException(
+                    "Only a PENDING appointment can be rescheduled (current: " + this.status + ")");
+        }
+        this.status = AppointmentStatus.RESCHEDULED;
     }
 
     public String getAppointmentId() { return appointmentId; }
@@ -59,4 +76,7 @@ public class Appointment {
 
     public Instant getCompletedAt() { return completedAt; }
     public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
+
+    public Instant getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(Instant cancelledAt) { this.cancelledAt = cancelledAt; }
 }

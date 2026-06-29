@@ -37,6 +37,7 @@ class CreateAppointmentUseCaseTest {
         Appointment createdEvent;
         public void publishCreated(Appointment a) { createdEvent = a; }
         public void publishCompleted(Appointment a) { }
+        public void publishCancelled(Appointment a) { }
     }
 
     @Test

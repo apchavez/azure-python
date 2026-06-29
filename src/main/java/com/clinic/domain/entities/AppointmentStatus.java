@@ -6,5 +6,7 @@ package com.clinic.domain.entities;
  */
 public enum AppointmentStatus {
     PENDING,
-    COMPLETED
+    COMPLETED,
+    CANCELLED,
+    RESCHEDULED
 }

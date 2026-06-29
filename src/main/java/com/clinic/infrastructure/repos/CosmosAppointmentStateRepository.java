@@ -4,11 +4,18 @@ import com.azure.cosmos.CosmosClient;
 import com.azure.cosmos.CosmosClientBuilder;
 import com.azure.cosmos.CosmosContainer;
 import com.azure.cosmos.CosmosException;
+import com.azure.cosmos.models.CosmosQueryRequestOptions;
+import com.azure.cosmos.models.FeedResponse;
 import com.azure.cosmos.models.PartitionKey;
+import com.azure.cosmos.models.SqlParameter;
+import com.azure.cosmos.models.SqlQuerySpec;
+import com.azure.cosmos.util.CosmosPagedIterable;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.clinic.domain.entities.Appointment;
 import com.clinic.domain.ports.AppointmentStateRepository;
+import com.clinic.domain.shared.Page;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,15 +63,30 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
 
     @Override
     public List<Appointment> findByInsuredId(String insuredId) {
-        com.azure.cosmos.models.CosmosQueryRequestOptions options =
-                new com.azure.cosmos.models.CosmosQueryRequestOptions();
-        com.azure.cosmos.models.SqlQuerySpec spec = new com.azure.cosmos.models.SqlQuerySpec(
+        SqlQuerySpec spec = new SqlQuerySpec(
                 "SELECT * FROM c WHERE c.insuredId = @insuredId",
-                new com.azure.cosmos.models.SqlParameter("@insuredId", insuredId));
-        return container.queryItems(spec, options, AppointmentItem.class)
+                new SqlParameter("@insuredId", insuredId));
+        return container.queryItems(spec, new CosmosQueryRequestOptions(), AppointmentItem.class)
                 .stream()
                 .map(this::toDomain)
                 .toList();
+    }
+
+    @Override
+    public Page<Appointment> findByInsuredId(String insuredId, int pageSize, String continuationToken) {
+        SqlQuerySpec spec = new SqlQuerySpec(
+                "SELECT * FROM c WHERE c.insuredId = @insuredId",
+                new SqlParameter("@insuredId", insuredId));
+        CosmosPagedIterable<AppointmentItem> paged =
+                container.queryItems(spec, new CosmosQueryRequestOptions(), AppointmentItem.class);
+        Iterator<FeedResponse<AppointmentItem>> pages =
+                paged.iterableByPage(continuationToken, pageSize).iterator();
+        if (!pages.hasNext()) {
+            return new Page<>(List.of(), null);
+        }
+        FeedResponse<AppointmentItem> feedPage = pages.next();
+        List<Appointment> items = feedPage.getResults().stream().map(this::toDomain).toList();
+        return new Page<>(items, feedPage.getContinuationToken());
     }
 
     @Override
@@ -74,6 +96,15 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
                 appointment.getAppointmentId(),
                 new PartitionKey(appointment.getAppointmentId()),
                 null);
+    }
+
+    public String ping() {
+        try {
+            container.read();
+            return "UP";
+        } catch (Exception e) {
+            return "DOWN: " + e.getMessage();
+        }
     }
 
     // --- mapping between domain entity and the Cosmos persistence model ---
@@ -87,6 +118,7 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
         item.status = a.getStatus().name();
         item.createdAt = a.getCreatedAt() != null ? a.getCreatedAt().toString() : null;
         item.completedAt = a.getCompletedAt() != null ? a.getCompletedAt().toString() : null;
+        item.cancelledAt = a.getCancelledAt() != null ? a.getCancelledAt().toString() : null;
         return item;
     }
 
@@ -99,6 +131,7 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
         a.setStatus(com.clinic.domain.entities.AppointmentStatus.valueOf(item.status));
         if (item.createdAt != null) a.setCreatedAt(java.time.Instant.parse(item.createdAt));
         if (item.completedAt != null) a.setCompletedAt(java.time.Instant.parse(item.completedAt));
+        if (item.cancelledAt != null) a.setCancelledAt(java.time.Instant.parse(item.cancelledAt));
         return a;
     }
 
@@ -111,5 +144,6 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
         public String status;
         public String createdAt;
         public String completedAt;
+        public String cancelledAt;
     }
 }

@@ -1,9 +1,11 @@
 package com.clinic.infrastructure.messaging;
 
+import com.azure.core.credential.TokenCredential;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.messaging.servicebus.ServiceBusClientBuilder;
 import com.azure.messaging.servicebus.ServiceBusMessage;
 import com.azure.messaging.servicebus.ServiceBusSenderClient;
+import com.azure.messaging.servicebus.administration.ServiceBusAdministrationClientBuilder;
 import com.clinic.domain.entities.Appointment;
 import com.clinic.domain.ports.AppointmentEventPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,11 +27,16 @@ public class ServiceBusEventPublisher implements AppointmentEventPublisher {
 
     private final ServiceBusSenderClient createdSender;
     private final ServiceBusSenderClient completedSender;
+    private final ServiceBusSenderClient cancelledSender;
+    private final String fullyQualifiedNamespace;
+    private final TokenCredential credential;
 
     public ServiceBusEventPublisher(String fullyQualifiedNamespace,
                                     String createdTopic,
-                                    String completedTopic) {
-        var credential = new DefaultAzureCredentialBuilder().build();
+                                    String completedTopic,
+                                    String cancelledTopic) {
+        this.fullyQualifiedNamespace = fullyQualifiedNamespace;
+        this.credential = new DefaultAzureCredentialBuilder().build();
         this.createdSender = new ServiceBusClientBuilder()
                 .fullyQualifiedNamespace(fullyQualifiedNamespace)
                 .credential(credential)
@@ -42,6 +49,25 @@ public class ServiceBusEventPublisher implements AppointmentEventPublisher {
                 .sender()
                 .topicName(completedTopic)
                 .buildClient();
+        this.cancelledSender = new ServiceBusClientBuilder()
+                .fullyQualifiedNamespace(fullyQualifiedNamespace)
+                .credential(credential)
+                .sender()
+                .topicName(cancelledTopic)
+                .buildClient();
+    }
+
+    public String ping() {
+        try {
+            new ServiceBusAdministrationClientBuilder()
+                    .endpoint("https://" + fullyQualifiedNamespace)
+                    .credential(credential)
+                    .buildClient()
+                    .getNamespaceProperties();
+            return "UP";
+        } catch (Exception e) {
+            return "DOWN: " + e.getMessage();
+        }
     }
 
     @Override
@@ -85,6 +111,27 @@ public class ServiceBusEventPublisher implements AppointmentEventPublisher {
             completedSender.sendMessage(message);
         } catch (Exception e) {
             throw new RuntimeException("Failed to publish APPOINTMENT_COMPLETED event", e);
+        }
+    }
+
+    @Override
+    public void publishCancelled(Appointment a) {
+        try {
+            ObjectNode node = MAPPER.createObjectNode()
+                    .put("eventType", "APPOINTMENT_CANCELLED")
+                    .put("appointmentId", a.getAppointmentId())
+                    .put("correlationId", a.getAppointmentId())
+                    .put("insuredId", a.getInsuredId())
+                    .put("countryISO", a.getCountryISO().name())
+                    .put("occurredAt", Instant.now().toString());
+            ServiceBusMessage message = new ServiceBusMessage(MAPPER.writeValueAsString(node));
+            message.setSubject(a.getCountryISO().name());
+            message.setCorrelationId(a.getAppointmentId());
+            message.getApplicationProperties().put("eventType", "APPOINTMENT_CANCELLED");
+            message.getApplicationProperties().put("countryISO", a.getCountryISO().name());
+            cancelledSender.sendMessage(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to publish APPOINTMENT_CANCELLED event", e);
         }
     }
 }

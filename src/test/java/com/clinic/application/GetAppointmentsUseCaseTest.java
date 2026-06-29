@@ -31,6 +31,7 @@ class GetAppointmentsUseCaseTest {
     static class NoOpPublisher implements AppointmentEventPublisher {
         public void publishCreated(Appointment a) {}
         public void publishCompleted(Appointment a) {}
+        public void publishCancelled(Appointment a) {}
     }
 
     @Test

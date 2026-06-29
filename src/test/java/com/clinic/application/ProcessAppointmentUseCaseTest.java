@@ -45,6 +45,7 @@ class ProcessAppointmentUseCaseTest {
         Appointment completedEvent;
         public void publishCreated(Appointment a) {}
         public void publishCompleted(Appointment a) { completedEvent = a; }
+        public void publishCancelled(Appointment a) {}
     }
 
     @Test

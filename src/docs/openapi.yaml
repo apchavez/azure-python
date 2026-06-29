@@ -20,10 +20,49 @@ servers:
 tags:
   - name: Appointments
     description: Gestión de citas médicas
+  - name: Operations
+    description: Observabilidad y estado del servicio
 
 security: []
 
 paths:
+  /health:
+    get:
+      tags: [Operations]
+      summary: Estado del servicio
+      description: >
+        Verifica la conectividad con las tres dependencias de infraestructura:
+        Cosmos DB, Azure SQL y Service Bus. Devuelve 200 si todas están activas,
+        503 si alguna está caída.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Todas las dependencias activas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "UP"
+                checks:
+                  cosmosDb: "UP"
+                  azureSql: "UP"
+                  serviceBus: "UP"
+                timestamp: "2026-06-28T15:00:00Z"
+        '503':
+          description: Una o más dependencias no responden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "DOWN"
+                checks:
+                  cosmosDb: "UP"
+                  azureSql: "DOWN: Connection refused"
+                  serviceBus: "UP"
+                timestamp: "2026-06-28T15:00:00Z"
+
   /appointments:
     post:
       tags: [Appointments]
@@ -74,11 +113,123 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /appointments/{appointmentId}:
+    delete:
+      tags: [Appointments]
+      summary: Cancelar una cita médica
+      description: >
+        Cancela una cita en estado PENDING. Transición de estado: PENDING → CANCELLED.
+        Publica un evento APPOINTMENT_CANCELLED en Service Bus.
+        Devuelve 409 si la cita no está en estado PENDING.
+      operationId: cancelAppointment
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: UUID de la cita a cancelar
+          schema:
+            type: string
+            format: uuid
+            example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        '200':
+          description: Cita cancelada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Appointment cancelled"
+                  appointmentId:
+                    type: string
+                    format: uuid
+        '404':
+          description: Cita no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cita no está en estado PENDING (ya completada, cancelada o reagendada)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /appointments/{appointmentId}/reschedule:
+    patch:
+      tags: [Appointments]
+      summary: Reagendar una cita médica
+      description: >
+        Reagenda una cita en estado PENDING a un nuevo horario. La cita original queda
+        marcada como RESCHEDULED y se crea una nueva cita en estado PENDING con el
+        nuevo scheduleId, que fluye por el pipeline event-driven normal.
+      operationId: rescheduleAppointment
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: UUID de la cita a reagendar
+          schema:
+            type: string
+            format: uuid
+            example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RescheduleRequest'
+            example:
+              newScheduleId: 42
+      responses:
+        '202':
+          description: Cita reagendada; nueva cita encolada para procesamiento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RescheduleResponse'
+        '400':
+          description: Request inválido (newScheduleId faltante o < 1)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cita no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cita no está en estado PENDING
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /appointments/{insuredId}:
     get:
       tags: [Appointments]
-      summary: Obtener citas de un asegurado
-      description: Retorna todas las citas (PENDING y COMPLETED) asociadas al insuredId dado, consultando Cosmos DB.
+      summary: Obtener citas de un asegurado (paginado)
+      description: >
+        Retorna una página de citas (PENDING y COMPLETED) asociadas al insuredId dado,
+        consultando Cosmos DB con cursor-based pagination. Usa el campo `nextCursor`
+        de la respuesta como valor del parámetro `cursor` en la siguiente llamada.
       operationId: getAppointments
       parameters:
         - name: insuredId
@@ -88,15 +239,54 @@ paths:
           schema:
             type: string
             example: "12345"
+        - name: pageSize
+          in: query
+          required: false
+          description: Número de ítems por página (default 20, máximo 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+        - name: cursor
+          in: query
+          required: false
+          description: Continuation token obtenido del campo `nextCursor` de una respuesta anterior
+          schema:
+            type: string
       responses:
         '200':
-          description: Lista de citas del asegurado
+          description: Página de citas del asegurado
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Appointment'
+                $ref: '#/components/schemas/AppointmentPage'
+              examples:
+                primera_pagina:
+                  summary: Primera página con más resultados
+                  value:
+                    items:
+                      - appointmentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                        insuredId: "12345"
+                        scheduleId: 10
+                        countryISO: "PE"
+                        status: "COMPLETED"
+                        createdAt: "2026-06-28T15:30:00Z"
+                        completedAt: "2026-06-28T15:30:05Z"
+                    nextCursor: "eyJpZCI6ImExYjJjM2Q0In0="
+                ultima_pagina:
+                  summary: Última página (sin más resultados)
+                  value:
+                    items:
+                      - appointmentId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                        insuredId: "12345"
+                        scheduleId: 22
+                        countryISO: "CL"
+                        status: "PENDING"
+                        createdAt: "2026-06-28T16:00:00Z"
+                        completedAt: null
+                    nextCursor: null
         '400':
           description: insuredId vacío o ausente
           content:
@@ -165,7 +355,7 @@ components:
           example: "PE"
         status:
           type: string
-          enum: [PENDING, COMPLETED]
+          enum: [PENDING, COMPLETED, CANCELLED, RESCHEDULED]
           example: "COMPLETED"
         createdAt:
           type: string
@@ -176,6 +366,73 @@ components:
           format: date-time
           nullable: true
           example: "2026-06-28T15:30:05Z"
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-06-28T16:00:00Z"
+
+    AppointmentPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+          description: Citas de la página actual
+        nextCursor:
+          type: string
+          nullable: true
+          description: Token para obtener la siguiente página; null si no hay más resultados
+          example: "eyJpZCI6ImExYjJjM2Q0In0="
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+          description: Estado agregado del servicio
+          example: "UP"
+        checks:
+          type: object
+          description: Estado individual de cada dependencia
+          additionalProperties:
+            type: string
+          example:
+            cosmosDb: "UP"
+            azureSql: "UP"
+            serviceBus: "UP"
+        timestamp:
+          type: string
+          format: date-time
+          description: Momento en que se ejecutó la verificación
+          example: "2026-06-28T15:00:00Z"
+
+    RescheduleRequest:
+      type: object
+      required: [newScheduleId]
+      properties:
+        newScheduleId:
+          type: integer
+          minimum: 1
+          description: ID del nuevo horario
+          example: 42
+
+    RescheduleResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Appointment rescheduled"
+        newAppointmentId:
+          type: string
+          format: uuid
+          description: UUID de la nueva cita creada
+          example: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+        newScheduleId:
+          type: integer
+          example: 42
 
     ErrorResponse:
       type: object

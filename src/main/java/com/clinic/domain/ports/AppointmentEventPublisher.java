@@ -16,4 +16,7 @@ public interface AppointmentEventPublisher {
 
     /** Publishes the "appointment completed" event (EventBridge -> Event Grid). */
     void publishCompleted(Appointment appointment);
+
+    /** Publishes the "appointment cancelled" event. */
+    void publishCancelled(Appointment appointment);
 }

@@ -169,6 +169,12 @@ Ruta incremental, ordenada de menor a mayor complejidad, para evolucionar el pro
 | Done | Soporte escalable para mas paises | Centralizar paises soportados en el dominio para evitar validaciones hardcodeadas. |
 | Done | Pruebas de integracion cloud/local | Workflow manual con Newman contra Function App o APIM desplegado. |
 | Done | Load testing y performance baselines | Medir cold starts, throughput de Service Bus y uso del pool SQL. |
+| Done | Health check endpoint `/api/health` | Verificar conectividad con Cosmos DB, Service Bus y SQL antes de reportar estado; buena practica operativa basica. |
+| Done | Pagination con cursor en `GET /appointments` | Usar el continuation token nativo de Cosmos DB para soportar asegurados con muchas citas sin cargar todo en memoria. |
+| Done | Casos de uso de cancelacion y reagendado | Agregar `CancelAppointmentUseCase` y `RescheduleAppointmentUseCase` con sus puertos; demuestra que el dominio evoluciona sin tocar infraestructura. |
+| Pending | Circuit breaker y retry exponencial con Resilience4j | Envolver adaptadores de Cosmos DB y SQL con politica de reintentos y circuit breaker para mayor resiliencia ante fallos transitorios. |
+| Pending | Notificaciones con Azure Communication Services | Enviar confirmacion al asegurado cuando su cita es completada; introduce un nuevo puerto de notificacion en el dominio sin acoplarlo a ACS. |
+| Pending | Event sourcing ligero en Cosmos DB | Guardar cada cambio de estado como un documento de evento (`AppointmentCreated`, `AppointmentCompleted`, `AppointmentCancelled`) para auditar el ciclo de vida completo de una cita. |
 
 ---
 
