@@ -65,7 +65,7 @@
         <dependency>
             <groupId>com.azure</groupId>
             <artifactId>azure-identity</artifactId>
-            <version>1.13.3</version>
+            <version>1.18.4</version>
         </dependency>
 
         <!-- Connection pool for Azure SQL (one connection per cold start, reused across warm invocations) -->
