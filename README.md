@@ -2,39 +2,39 @@
 
 # Clinic Scheduling Platform — Azure (Java 21)
 
-Migración a **Azure** de la plataforma de citas médicas originalmente construida en **AWS** ([clinic-scheduling-platform](https://github.com/apchavez/clinic-scheduling-platform), TypeScript). Misma lógica de negocio y misma Clean Architecture, reescrita en Java 21 sobre Azure Functions.
+Azure migration of the medical appointment platform originally built on AWS ([clinic-scheduling-platform](https://github.com/apchavez/clinic-scheduling-platform), TypeScript). Same business logic and same Clean Architecture — only the infrastructure adapters change.
 
-> El dominio no conoce Azure. Lo que cambia entre nubes es únicamente la capa de infraestructura; los casos de uso y entidades permanecen intactos.
+> The domain has no knowledge of Azure. What changes between clouds is exclusively the infrastructure layer; use cases and entities remain intact.
 
-> **Sin costos en reposo** — el CI solo compila y ejecuta tests. Ningún recurso Azure se aprovisiona hasta ejecutar el workflow de deploy manualmente.
+> **Zero cost at rest** — CI only compiles and runs tests. No Azure resources are provisioned until the deploy workflow is triggered manually.
 
 ---
 
-## Tecnologías
+## Tech Stack
 
-| Categoría | Tecnología |
+| Category | Technology |
 |---|---|
-| Lenguaje / Runtime | Java 21, Azure Functions v4 |
-| Estado (NoSQL) | Cosmos DB serverless (Managed Identity) |
-| Persistencia relacional | Azure SQL Database (HikariCP, Flyway) |
-| Mensajería | Service Bus topics + subscriptions (Managed Identity) |
-| Notificaciones | Azure Communication Services Email |
-| Resiliencia | Resilience4j — circuit breaker + retry exponencial |
-| IaC | Bicep (suscripción-level deployment) |
-| Seguridad | Managed Identity, Key Vault references, HTTPS-only |
-| Observabilidad | Application Insights, correlation IDs, logs estructurados |
-| Documentación API | OpenAPI 3.0 (validado en CI con Redocly) |
-| Build / Tests | Maven, JUnit 5, JaCoCo (gate 80 % en domain + application) |
-| CI/CD | GitHub Actions (CI automático, deploy/destroy manuales) |
+| Language / Runtime | Java 21, Azure Functions v4 |
+| State store (NoSQL) | Cosmos DB serverless (Managed Identity) |
+| Relational persistence | Azure SQL Database (HikariCP, Flyway) |
+| Messaging | Service Bus topics + subscriptions (Managed Identity) |
+| Notifications | Azure Communication Services Email |
+| Resilience | Resilience4j — circuit breaker + exponential retry |
+| IaC | Bicep (subscription-level deployment) |
+| Security | Managed Identity, Key Vault references, HTTPS-only |
+| Observability | Application Insights, correlation IDs, structured logs |
+| API Docs | OpenAPI 3.0 (validated in CI with Redocly) |
+| Build / Tests | Maven, JUnit 5, JaCoCo (80% gate on domain + application) |
+| CI/CD | GitHub Actions (automatic CI, manual deploy/destroy) |
 
 ---
 
-## Mapeo AWS → Azure
+## AWS → Azure Mapping
 
-| AWS (proyecto original) | Azure (este proyecto) |
+| AWS (original project) | Azure (this project) |
 |---|---|
 | AWS Lambda | Azure Functions v4 |
-| API Gateway | HTTP trigger (+ APIM opcional) |
+| API Gateway | HTTP trigger (+ optional APIM) |
 | DynamoDB | Cosmos DB |
 | MySQL / RDS | Azure SQL Database |
 | SNS topic | Service Bus topic |
@@ -45,9 +45,9 @@ Migración a **Azure** de la plataforma de citas médicas originalmente construi
 
 ---
 
-## Arquitectura
+## Architecture
 
-Clean Architecture con cuatro capas bien delimitadas:
+Clean Architecture with four well-defined layers:
 
 ```
 src/main/java/com/clinic/
@@ -67,53 +67,53 @@ src/main/java/com/clinic/
 │   └── repos/           CosmosAppointmentStateRepository, CosmosAppointmentEventStore,
 │                        AzureSqlAppointmentRepository
 └── api/
-    └── functions/       HTTP triggers y Service Bus triggers
+    └── functions/       HTTP triggers and Service Bus triggers
 ```
 
-**Regla de dependencias:** `api` / `infrastructure` → `application` → `domain`  
-El dominio no importa ninguna clase de Azure. Los tests corren completamente en memoria, sin nube.
+**Dependency rule:** `api` / `infrastructure` → `application` → `domain`  
+The domain imports no Azure classes. Tests run entirely in memory, no cloud required.
 
 ---
 
-## Flujo end-to-end
+## End-to-End Flow
 
 ```
 POST /api/appointments
   → CreateAppointmentUseCase
-      → Cosmos DB (estado PENDING) + evento APPOINTMENT_CREATED
+      → Cosmos DB (status PENDING) + event APPOINTMENT_CREATED
       → Service Bus topic "appointment-created"
           → AppointmentWorkerPE / AppointmentWorkerCL
               → ProcessAppointmentUseCase
-                  → Cosmos DB (COMPLETED) + evento APPOINTMENT_COMPLETED
-                  → Azure SQL (persistencia final)
-                  → ACS Email (notificación al asegurado)
+                  → Cosmos DB (COMPLETED) + event APPOINTMENT_COMPLETED
+                  → Azure SQL (final persistence)
+                  → ACS Email (notification to insured)
                   → Service Bus topic "appointment-completed"
 
-DELETE /api/appointments/{id}   → CancelAppointmentUseCase  → CANCELLED
-PATCH  /api/appointments/{id}/reschedule → RescheduleAppointmentUseCase → RESCHEDULED + nueva cita
-GET    /api/appointments/{id}/history    → log de eventos inmutables desde Cosmos DB
+DELETE /api/appointments/{id}             → CancelAppointmentUseCase     → CANCELLED
+PATCH  /api/appointments/{id}/reschedule  → RescheduleAppointmentUseCase → RESCHEDULED + new appointment
+GET    /api/appointments/{id}/history     → immutable event log from Cosmos DB
 ```
 
 ---
 
-## Ejecutar localmente
+## Getting Started
 
-Requiere [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local) y una cuenta de Cosmos DB o el emulador.
+Requires [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local) and a Cosmos DB account or emulator.
 
 ```bash
-# 1. Compilar
+# 1. Build
 mvn clean package
 
-# 2. Configurar variables (copia y edita)
+# 2. Configure variables (copy and edit)
 cp local.settings.json.example local.settings.json
 
-# 3. Iniciar
+# 3. Start
 mvn azure-functions:run
 ```
 
-La función queda disponible en `http://localhost:7071/api`.
+The function will be available at `http://localhost:7071/api`.
 
-Para ejecutar solo los tests (sin nube, sin variables de entorno):
+To run only the tests (no cloud, no environment variables):
 
 ```bash
 mvn clean verify
@@ -121,33 +121,55 @@ mvn clean verify
 
 ---
 
-## Despliegue
-
-El deploy es **exclusivamente manual** vía GitHub Actions (`workflow_dispatch`). El CI nunca aprovisiona recursos Azure.
-
-```
-.github/workflows/
-├── ci.yml          Push/PR → build, tests, validación OpenAPI   (sin costo Azure)
-├── deploy.yml      Manual  → infra Bicep + Function App         (genera costo)
-├── destroy.yml     Manual  → elimina el resource group          (detiene costo)
-└── integration.yml Manual  → tests Postman contra entorno vivo
-```
-
-Para desplegar en Azure es necesario configurar las variables OIDC del entorno (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) y el secret `SQL_ADMIN_PASSWORD` en el repositorio.
-
----
-
-## Endpoints
+## API Endpoints
 
 Base path: `/api`
 
-| Método | Ruta | Descripción |
+| Method | Route | Description |
 |---|---|---|
-| `POST` | `/appointments` | Crear cita (PENDING → Service Bus) |
-| `GET` | `/appointments/{insuredId}` | Listar citas paginadas (cursor-based) |
-| `DELETE` | `/appointments/{appointmentId}` | Cancelar cita PENDING |
-| `PATCH` | `/appointments/{appointmentId}/reschedule` | Reagendar cita PENDING |
-| `GET` | `/appointments/{appointmentId}/history` | Log de eventos de una cita |
-| `GET` | `/health` | Estado de Cosmos DB, SQL y Service Bus |
+| `POST` | `/appointments` | Create appointment (PENDING → Service Bus) |
+| `GET` | `/appointments/{insuredId}` | List appointments with cursor-based pagination |
+| `DELETE` | `/appointments/{appointmentId}` | Cancel a PENDING appointment |
+| `PATCH` | `/appointments/{appointmentId}/reschedule` | Reschedule a PENDING appointment |
+| `GET` | `/appointments/{appointmentId}/history` | Immutable event log for an appointment |
+| `GET` | `/health` | Status of Cosmos DB, SQL, and Service Bus |
 
-Contrato completo: [`src/docs/openapi.yaml`](src/docs/openapi.yaml)
+Full contract: [`src/docs/openapi.yaml`](src/docs/openapi.yaml)
+
+---
+
+## Deploy
+
+The deploy is **exclusively manual** via GitHub Actions (`workflow_dispatch`). CI never provisions Azure resources.
+
+```
+.github/workflows/
+├── ci.yml          Push/PR → build, tests, OpenAPI validation   (no Azure cost)
+├── deploy.yml      Manual  → Bicep infra + Function App         (incurs cost)
+├── destroy.yml     Manual  → deletes the resource group         (stops cost)
+└── integration.yml Manual  → Postman tests against live env
+```
+
+To deploy to Azure, configure the OIDC environment variables (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) and the `SQL_ADMIN_PASSWORD` secret in the repository.
+
+---
+
+## What This Project Demonstrates
+
+- Clean Architecture portable across clouds — only the infrastructure adapters change, domain and use cases are identical to the AWS version
+- Azure-native services: Cosmos DB event sourcing, Service Bus fan-out, ACS email notifications
+- Managed Identity throughout — no hardcoded credentials anywhere in the codebase
+- Resilience4j circuit breaker + exponential retry on all external calls
+- Cursor-based pagination on Cosmos DB for large result sets
+- Bicep IaC at subscription level — full stack provisioned in a single workflow
+- OpenAPI contract validated on every CI run with Redocly
+- Zero-cost CI design — no Azure resources are created by the CI pipeline
+
+---
+
+## Related Projects
+
+| Project | Description |
+|---|---|
+| [clinic-scheduling-platform](https://github.com/apchavez/clinic-scheduling-platform) | The original AWS version — TypeScript, Lambda, DynamoDB, SNS/SQS. Same domain logic, different cloud |
+| [reactive-customer-service](https://github.com/apchavez/reactive-customer-service) | Java 21 reactive REST API with Spring Boot WebFlux and hexagonal architecture |
