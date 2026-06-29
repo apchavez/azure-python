@@ -164,6 +164,63 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /appointments/{appointmentId}/history:
+    get:
+      tags: [Appointments]
+      summary: Historial de eventos de una cita
+      description: >
+        Retorna el log de eventos inmutables de una cita ordenados por fecha de ocurrencia.
+        Cada transición de estado (creación, completado, cancelación, reagendado) genera
+        un documento de evento en Cosmos DB que nunca se modifica.
+      operationId: getAppointmentHistory
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: UUID de la cita
+          schema:
+            type: string
+            format: uuid
+            example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        '200':
+          description: Lista de eventos ordenada cronológicamente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AppointmentEventRecord'
+              example:
+                - eventId: "e1f2a3b4-c5d6-7890-abcd-ef1234567890"
+                  appointmentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  eventType: "APPOINTMENT_CREATED"
+                  insuredId: "12345"
+                  scheduleId: 10
+                  countryISO: "PE"
+                  status: "PENDING"
+                  occurredAt: "2026-06-28T15:30:00Z"
+                - eventId: "f2a3b4c5-d6e7-8901-bcde-f12345678901"
+                  appointmentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  eventType: "APPOINTMENT_COMPLETED"
+                  insuredId: "12345"
+                  scheduleId: 10
+                  countryISO: "PE"
+                  status: "COMPLETED"
+                  occurredAt: "2026-06-28T15:30:05Z"
+        '400':
+          description: appointmentId vacío o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /appointments/{appointmentId}/reschedule:
     patch:
       tags: [Appointments]
@@ -413,6 +470,32 @@ components:
           format: date-time
           description: Momento en que se ejecutó la verificación
           example: "2026-06-28T15:00:00Z"
+
+    AppointmentEventRecord:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        appointmentId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          enum: [APPOINTMENT_CREATED, APPOINTMENT_COMPLETED, APPOINTMENT_CANCELLED, APPOINTMENT_RESCHEDULED]
+        insuredId:
+          type: string
+        scheduleId:
+          type: integer
+        countryISO:
+          type: string
+          enum: [PE, CL]
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, CANCELLED, RESCHEDULED]
+        occurredAt:
+          type: string
+          format: date-time
 
     RescheduleRequest:
       type: object

@@ -5,11 +5,13 @@ import com.clinic.application.usecases.CreateAppointmentUseCase;
 import com.clinic.application.usecases.GetAppointmentsUseCase;
 import com.clinic.application.usecases.ProcessAppointmentUseCase;
 import com.clinic.application.usecases.RescheduleAppointmentUseCase;
+import com.clinic.domain.ports.AppointmentEventStore;
 import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.infrastructure.messaging.ServiceBusEventPublisher;
 import com.clinic.infrastructure.notifications.AcsAppointmentNotifier;
 import com.clinic.infrastructure.notifications.NoOpAppointmentNotifier;
 import com.clinic.infrastructure.repos.AzureSqlAppointmentRepository;
+import com.clinic.infrastructure.repos.CosmosAppointmentEventStore;
 import com.clinic.infrastructure.repos.CosmosAppointmentStateRepository;
 import com.clinic.shared.HealthStatus;
 
@@ -33,6 +35,7 @@ public final class AppContext {
     private static volatile CancelAppointmentUseCase cancelUseCase;
     private static volatile RescheduleAppointmentUseCase rescheduleUseCase;
     private static volatile AppointmentNotifier notifier;
+    private static volatile CosmosAppointmentEventStore cosmosEventStore;
 
     private AppContext() {
     }
@@ -90,6 +93,22 @@ public final class AppContext {
         return relationalRepo;
     }
 
+    public static AppointmentEventStore eventStore() {
+        if (cosmosEventStore == null) {
+            synchronized (AppContext.class) {
+                if (cosmosEventStore == null) {
+                    cosmosEventStore = new CosmosAppointmentEventStore(
+                            env("COSMOS_ENDPOINT", ""),
+                            env("COSMOS_DATABASE", "clinicdb"),
+                            env("COSMOS_EVENTS_CONTAINER", "appointment-events"),
+                            ResilienceConfig.exponentialRetry("cosmos-events"),
+                            ResilienceConfig.circuitBreaker("cosmos-events"));
+                }
+            }
+        }
+        return cosmosEventStore;
+    }
+
     private static AppointmentNotifier notifier() {
         if (notifier == null) {
             synchronized (AppContext.class) {
@@ -111,7 +130,7 @@ public final class AppContext {
         if (createUseCase == null) {
             synchronized (AppContext.class) {
                 if (createUseCase == null) {
-                    createUseCase = new CreateAppointmentUseCase(stateRepository(), eventPublisher());
+                    createUseCase = new CreateAppointmentUseCase(stateRepository(), eventPublisher(), eventStore());
                 }
             }
         }
@@ -123,7 +142,7 @@ public final class AppContext {
             synchronized (AppContext.class) {
                 if (processUseCase == null) {
                     processUseCase = new ProcessAppointmentUseCase(
-                            stateRepository(), relationalRepository(), eventPublisher(), notifier());
+                            stateRepository(), relationalRepository(), eventPublisher(), notifier(), eventStore());
                 }
             }
         }
@@ -145,7 +164,7 @@ public final class AppContext {
         if (cancelUseCase == null) {
             synchronized (AppContext.class) {
                 if (cancelUseCase == null) {
-                    cancelUseCase = new CancelAppointmentUseCase(stateRepository(), eventPublisher(), notifier());
+                    cancelUseCase = new CancelAppointmentUseCase(stateRepository(), eventPublisher(), notifier(), eventStore());
                 }
             }
         }
@@ -156,7 +175,7 @@ public final class AppContext {
         if (rescheduleUseCase == null) {
             synchronized (AppContext.class) {
                 if (rescheduleUseCase == null) {
-                    rescheduleUseCase = new RescheduleAppointmentUseCase(stateRepository(), eventPublisher(), notifier());
+                    rescheduleUseCase = new RescheduleAppointmentUseCase(stateRepository(), eventPublisher(), notifier(), eventStore());
                 }
             }
         }

@@ -2,9 +2,11 @@ package com.clinic.application;
 
 import com.clinic.application.usecases.ProcessAppointmentUseCase;
 import com.clinic.domain.entities.Appointment;
+import com.clinic.domain.entities.AppointmentEvent;
 import com.clinic.domain.entities.AppointmentStatus;
 import com.clinic.domain.entities.CountryISO;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentEventStore;
 import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.domain.ports.AppointmentRelationalRepository;
 import com.clinic.domain.ports.AppointmentStateRepository;
@@ -56,6 +58,14 @@ class ProcessAppointmentUseCaseTest {
         public void notifyRescheduled(Appointment o, Appointment n) {}
     }
 
+    static class InMemoryEventStore implements AppointmentEventStore {
+        final java.util.List<AppointmentEvent> events = new java.util.ArrayList<>();
+        public void append(AppointmentEvent e) { events.add(e); }
+        public java.util.List<AppointmentEvent> findByAppointmentId(String id) {
+            return events.stream().filter(e -> e.getAppointmentId().equals(id)).toList();
+        }
+    }
+
     @Test
     void processesPendingAppointmentToCompletion() {
         InMemoryState state = new InMemoryState();
@@ -66,12 +76,15 @@ class ProcessAppointmentUseCaseTest {
         Appointment pending = new Appointment("appt-1", "ins-99", 5, CountryISO.PE);
         state.save(pending);
 
-        new ProcessAppointmentUseCase(state, relational, publisher, notifier).execute("appt-1");
+        InMemoryEventStore eventStore = new InMemoryEventStore();
+        new ProcessAppointmentUseCase(state, relational, publisher, notifier, eventStore).execute("appt-1");
 
         assertEquals(AppointmentStatus.COMPLETED, relational.persisted.getStatus());
         assertNotNull(relational.persisted.getCompletedAt());
         assertEquals("appt-1", publisher.completedEvent.getAppointmentId());
         assertEquals("appt-1", notifier.completedNotification.getAppointmentId());
+        assertEquals(1, eventStore.events.size());
+        assertEquals("APPOINTMENT_COMPLETED", eventStore.events.get(0).getEventType());
     }
 
     @Test
@@ -84,7 +97,7 @@ class ProcessAppointmentUseCaseTest {
         completed.markCompleted();
         state.save(completed);
 
-        new ProcessAppointmentUseCase(state, relational, publisher, new CapturingNotifier()).execute("appt-2");
+        new ProcessAppointmentUseCase(state, relational, publisher, new CapturingNotifier(), new InMemoryEventStore()).execute("appt-2");
 
         assertNull(relational.persisted);
         assertNull(publisher.completedEvent);
@@ -95,7 +108,7 @@ class ProcessAppointmentUseCaseTest {
         assertThrows(IllegalStateException.class,
                 () -> new ProcessAppointmentUseCase(
                         new InMemoryState(), new CapturingRelational(),
-                        new CapturingPublisher(), new CapturingNotifier())
+                        new CapturingPublisher(), new CapturingNotifier(), new InMemoryEventStore())
                         .execute("nonexistent"));
     }
 }

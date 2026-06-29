@@ -1,7 +1,9 @@
 package com.clinic.application.usecases;
 
 import com.clinic.domain.entities.Appointment;
+import com.clinic.domain.entities.AppointmentEvent;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentEventStore;
 import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.domain.ports.AppointmentStateRepository;
 
@@ -13,13 +15,16 @@ public class RescheduleAppointmentUseCase {
     private final AppointmentStateRepository stateRepository;
     private final AppointmentEventPublisher eventPublisher;
     private final AppointmentNotifier notifier;
+    private final AppointmentEventStore eventStore;
 
     public RescheduleAppointmentUseCase(AppointmentStateRepository stateRepository,
                                         AppointmentEventPublisher eventPublisher,
-                                        AppointmentNotifier notifier) {
+                                        AppointmentNotifier notifier,
+                                        AppointmentEventStore eventStore) {
         this.stateRepository = stateRepository;
         this.eventPublisher = eventPublisher;
         this.notifier = notifier;
+        this.eventStore = eventStore;
     }
 
     /**
@@ -44,6 +49,8 @@ public class RescheduleAppointmentUseCase {
         newAppointment.setContactEmail(old.getContactEmail());
         stateRepository.save(newAppointment);
         eventPublisher.publishCreated(newAppointment);
+        eventStore.append(AppointmentEvent.of("APPOINTMENT_RESCHEDULED", old));
+        eventStore.append(AppointmentEvent.of("APPOINTMENT_CREATED", newAppointment));
         notifier.notifyRescheduled(old, newAppointment);
 
         return newAppointment;

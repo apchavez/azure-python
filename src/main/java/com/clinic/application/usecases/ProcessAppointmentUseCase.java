@@ -1,8 +1,10 @@
 package com.clinic.application.usecases;
 
 import com.clinic.domain.entities.Appointment;
+import com.clinic.domain.entities.AppointmentEvent;
 import com.clinic.domain.entities.AppointmentStatus;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentEventStore;
 import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.domain.ports.AppointmentRelationalRepository;
 import com.clinic.domain.ports.AppointmentStateRepository;
@@ -27,15 +29,18 @@ public class ProcessAppointmentUseCase {
     private final AppointmentRelationalRepository relationalRepository;
     private final AppointmentEventPublisher eventPublisher;
     private final AppointmentNotifier notifier;
+    private final AppointmentEventStore eventStore;
 
     public ProcessAppointmentUseCase(AppointmentStateRepository stateRepository,
                                      AppointmentRelationalRepository relationalRepository,
                                      AppointmentEventPublisher eventPublisher,
-                                     AppointmentNotifier notifier) {
+                                     AppointmentNotifier notifier,
+                                     AppointmentEventStore eventStore) {
         this.stateRepository = stateRepository;
         this.relationalRepository = relationalRepository;
         this.eventPublisher = eventPublisher;
         this.notifier = notifier;
+        this.eventStore = eventStore;
     }
 
     public void execute(String appointmentId) {
@@ -54,6 +59,7 @@ public class ProcessAppointmentUseCase {
         relationalRepository.persist(appointment);
         stateRepository.updateStatus(appointment);
         eventPublisher.publishCompleted(appointment);
+        eventStore.append(AppointmentEvent.of("APPOINTMENT_COMPLETED", appointment));
         notifier.notifyCompleted(appointment);
     }
 }

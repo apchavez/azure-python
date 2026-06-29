@@ -3,8 +3,10 @@ package com.clinic.application;
 import com.clinic.application.usecases.CreateAppointmentUseCase;
 import com.clinic.application.usecases.GetAppointmentsUseCase;
 import com.clinic.domain.entities.Appointment;
+import com.clinic.domain.entities.AppointmentEvent;
 import com.clinic.domain.entities.CountryISO;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentEventStore;
 import com.clinic.domain.ports.AppointmentStateRepository;
 import org.junit.jupiter.api.Test;
 
@@ -34,10 +36,15 @@ class GetAppointmentsUseCaseTest {
         public void publishCancelled(Appointment a) {}
     }
 
+    static class NoOpEventStore implements AppointmentEventStore {
+        public void append(AppointmentEvent e) {}
+        public java.util.List<AppointmentEvent> findByAppointmentId(String id) { return java.util.List.of(); }
+    }
+
     @Test
     void returnsAllAppointmentsForInsured() {
         InMemoryState state = new InMemoryState();
-        CreateAppointmentUseCase create = new CreateAppointmentUseCase(state, new NoOpPublisher());
+        CreateAppointmentUseCase create = new CreateAppointmentUseCase(state, new NoOpPublisher(), new NoOpEventStore());
         GetAppointmentsUseCase query = new GetAppointmentsUseCase(state);
 
         create.execute("ins-10", 1, CountryISO.PE, null);

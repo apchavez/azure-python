@@ -2,9 +2,11 @@ package com.clinic.application;
 
 import com.clinic.application.usecases.RescheduleAppointmentUseCase;
 import com.clinic.domain.entities.Appointment;
+import com.clinic.domain.entities.AppointmentEvent;
 import com.clinic.domain.entities.AppointmentStatus;
 import com.clinic.domain.entities.CountryISO;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentEventStore;
 import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.domain.ports.AppointmentStateRepository;
 import org.junit.jupiter.api.Test;
@@ -47,16 +49,25 @@ class RescheduleAppointmentUseCaseTest {
         public void notifyRescheduled(Appointment o, Appointment n) { rescheduledOld = o; rescheduledNew = n; }
     }
 
+    static class InMemoryEventStore implements AppointmentEventStore {
+        final java.util.List<AppointmentEvent> events = new java.util.ArrayList<>();
+        public void append(AppointmentEvent e) { events.add(e); }
+        public java.util.List<AppointmentEvent> findByAppointmentId(String id) {
+            return events.stream().filter(e -> e.getAppointmentId().equals(id)).toList();
+        }
+    }
+
     @Test
     void marksOldAsRescheduledAndCreatesNewPendingAppointment() {
         InMemoryState state = new InMemoryState();
         CapturingPublisher publisher = new CapturingPublisher();
         CapturingNotifier notifier = new CapturingNotifier();
+        InMemoryEventStore eventStore = new InMemoryEventStore();
         Appointment original = new Appointment("old-id", "12345", 10, CountryISO.PE);
         original.setContactEmail("test@example.com");
         state.save(original);
 
-        Appointment newAppt = new RescheduleAppointmentUseCase(state, publisher, notifier).execute("old-id", 99);
+        Appointment newAppt = new RescheduleAppointmentUseCase(state, publisher, notifier, eventStore).execute("old-id", 99);
 
         Appointment old = state.findById("old-id").orElseThrow();
         assertEquals(AppointmentStatus.RESCHEDULED, old.getStatus());
@@ -70,13 +81,16 @@ class RescheduleAppointmentUseCaseTest {
         assertEquals(newAppt.getAppointmentId(), publisher.createdEvent.getAppointmentId());
         assertEquals("old-id", notifier.rescheduledOld.getAppointmentId());
         assertEquals(newAppt.getAppointmentId(), notifier.rescheduledNew.getAppointmentId());
+        assertEquals(2, eventStore.events.size());
+        assertEquals("APPOINTMENT_RESCHEDULED", eventStore.events.get(0).getEventType());
+        assertEquals("APPOINTMENT_CREATED", eventStore.events.get(1).getEventType());
     }
 
     @Test
     void throwsWhenAppointmentNotFound() {
         assertThrows(IllegalStateException.class,
                 () -> new RescheduleAppointmentUseCase(
-                        new InMemoryState(), new CapturingPublisher(), new CapturingNotifier())
+                        new InMemoryState(), new CapturingPublisher(), new CapturingNotifier(), new InMemoryEventStore())
                         .execute("missing", 10));
     }
 
@@ -89,6 +103,6 @@ class RescheduleAppointmentUseCaseTest {
 
         assertThrows(IllegalStateException.class,
                 () -> new RescheduleAppointmentUseCase(
-                        state, new CapturingPublisher(), new CapturingNotifier()).execute("appt-2", 20));
+                        state, new CapturingPublisher(), new CapturingNotifier(), new InMemoryEventStore()).execute("appt-2", 20));
     }
 }

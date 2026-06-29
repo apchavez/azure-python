@@ -1,8 +1,10 @@
 package com.clinic.application.usecases;
 
 import com.clinic.domain.entities.Appointment;
+import com.clinic.domain.entities.AppointmentEvent;
 import com.clinic.domain.entities.CountryISO;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentEventStore;
 import com.clinic.domain.ports.AppointmentStateRepository;
 
 import java.util.UUID;
@@ -20,11 +22,14 @@ public class CreateAppointmentUseCase {
 
     private final AppointmentStateRepository stateRepository;
     private final AppointmentEventPublisher eventPublisher;
+    private final AppointmentEventStore eventStore;
 
     public CreateAppointmentUseCase(AppointmentStateRepository stateRepository,
-                                    AppointmentEventPublisher eventPublisher) {
+                                    AppointmentEventPublisher eventPublisher,
+                                    AppointmentEventStore eventStore) {
         this.stateRepository = stateRepository;
         this.eventPublisher = eventPublisher;
+        this.eventStore = eventStore;
     }
 
     public Appointment execute(String insuredId, int scheduleId, CountryISO countryISO, String contactEmail) {
@@ -34,6 +39,7 @@ public class CreateAppointmentUseCase {
 
         stateRepository.save(appointment);
         eventPublisher.publishCreated(appointment);
+        eventStore.append(AppointmentEvent.of("APPOINTMENT_CREATED", appointment));
 
         return appointment;
     }

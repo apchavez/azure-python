@@ -101,6 +101,7 @@ GET /api/appointments/{insuredId}
 | `SQL_PASSWORD`                        | Contraseña (Key Vault reference en producción)       |
 | `ACS_ENDPOINT`                        | URI del recurso Azure Communication Services (opcional; si ausente, notificaciones deshabilitadas) |
 | `ACS_SENDER_ADDRESS`                  | Dirección de email verificada para envío (ej. `DoNotReply@<domain>.azurecomm.net`) |
+| `COSMOS_EVENTS_CONTAINER`             | Nombre del contenedor de eventos (default: `appointment-events`)                   |
 
 ---
 
@@ -176,7 +177,7 @@ Ruta incremental, ordenada de menor a mayor complejidad, para evolucionar el pro
 | Done | Casos de uso de cancelacion y reagendado | Agregar `CancelAppointmentUseCase` y `RescheduleAppointmentUseCase` con sus puertos; demuestra que el dominio evoluciona sin tocar infraestructura. |
 | Done | Circuit breaker y retry exponencial con Resilience4j | Envolver adaptadores de Cosmos DB y SQL con politica de reintentos y circuit breaker para mayor resiliencia ante fallos transitorios. |
 | Done | Notificaciones con Azure Communication Services | Enviar confirmacion al asegurado cuando su cita es completada; introduce un nuevo puerto de notificacion en el dominio sin acoplarlo a ACS. |
-| Pending | Event sourcing ligero en Cosmos DB | Guardar cada cambio de estado como un documento de evento (`AppointmentCreated`, `AppointmentCompleted`, `AppointmentCancelled`) para auditar el ciclo de vida completo de una cita. |
+| Done | Event sourcing ligero en Cosmos DB | Guardar cada cambio de estado como un documento de evento (`AppointmentCreated`, `AppointmentCompleted`, `AppointmentCancelled`) para auditar el ciclo de vida completo de una cita. |
 
 ---
 
