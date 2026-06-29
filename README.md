@@ -1,3 +1,5 @@
+[![CI](https://github.com/apchavez/clinic-scheduling-azure/actions/workflows/ci.yml/badge.svg)](https://github.com/apchavez/clinic-scheduling-azure/actions/workflows/ci.yml)
+
 # Clinic Scheduling Platform — Azure (Java 21)
 
 Migración a **Azure** de la plataforma de citas médicas originalmente construida en **AWS** (`clinic-scheduling-platform`, TypeScript). Misma **lógica de negocio** y misma **Clean Architecture**, reescrita en **Java 21** sobre Azure Functions.
