@@ -27,14 +27,13 @@ public class CreateAppointmentUseCase {
         this.eventPublisher = eventPublisher;
     }
 
-    public Appointment execute(String insuredId, int scheduleId, CountryISO countryISO) {
-        // UUID generated here (best practice: the request body doesn't carry an id).
+    public Appointment execute(String insuredId, int scheduleId, CountryISO countryISO, String contactEmail) {
         String appointmentId = UUID.randomUUID().toString();
-
         Appointment appointment = new Appointment(appointmentId, insuredId, scheduleId, countryISO);
+        appointment.setContactEmail(contactEmail);
 
-        stateRepository.save(appointment);          // PENDING state -> Cosmos
-        eventPublisher.publishCreated(appointment); // fan-out -> Service Bus
+        stateRepository.save(appointment);
+        eventPublisher.publishCreated(appointment);
 
         return appointment;
     }

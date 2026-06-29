@@ -87,6 +87,13 @@
             <version>10.15.2</version>
         </dependency>
 
+        <!-- Azure Communication Services Email (appointment notifications) -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-communication-email</artifactId>
+            <version>1.0.15</version>
+        </dependency>
+
         <!-- Resilience4j: circuit breaker + exponential retry for infrastructure adapters -->
         <dependency>
             <groupId>io.github.resilience4j</groupId>

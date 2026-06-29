@@ -5,6 +5,7 @@ import com.clinic.domain.entities.Appointment;
 import com.clinic.domain.entities.AppointmentStatus;
 import com.clinic.domain.entities.CountryISO;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.domain.ports.AppointmentRelationalRepository;
 import com.clinic.domain.ports.AppointmentStateRepository;
 import org.junit.jupiter.api.Test;
@@ -48,21 +49,29 @@ class ProcessAppointmentUseCaseTest {
         public void publishCancelled(Appointment a) {}
     }
 
+    static class CapturingNotifier implements AppointmentNotifier {
+        Appointment completedNotification;
+        public void notifyCompleted(Appointment a) { completedNotification = a; }
+        public void notifyCancelled(Appointment a) {}
+        public void notifyRescheduled(Appointment o, Appointment n) {}
+    }
+
     @Test
     void processesPendingAppointmentToCompletion() {
         InMemoryState state = new InMemoryState();
         CapturingRelational relational = new CapturingRelational();
         CapturingPublisher publisher = new CapturingPublisher();
+        CapturingNotifier notifier = new CapturingNotifier();
 
         Appointment pending = new Appointment("appt-1", "ins-99", 5, CountryISO.PE);
         state.save(pending);
 
-        ProcessAppointmentUseCase useCase = new ProcessAppointmentUseCase(state, relational, publisher);
-        useCase.execute("appt-1");
+        new ProcessAppointmentUseCase(state, relational, publisher, notifier).execute("appt-1");
 
         assertEquals(AppointmentStatus.COMPLETED, relational.persisted.getStatus());
         assertNotNull(relational.persisted.getCompletedAt());
         assertEquals("appt-1", publisher.completedEvent.getAppointmentId());
+        assertEquals("appt-1", notifier.completedNotification.getAppointmentId());
     }
 
     @Test
@@ -75,20 +84,18 @@ class ProcessAppointmentUseCaseTest {
         completed.markCompleted();
         state.save(completed);
 
-        ProcessAppointmentUseCase useCase = new ProcessAppointmentUseCase(state, relational, publisher);
-        useCase.execute("appt-2");
+        new ProcessAppointmentUseCase(state, relational, publisher, new CapturingNotifier()).execute("appt-2");
 
-        // Must skip silently — relational store and publisher should not be called.
         assertNull(relational.persisted);
         assertNull(publisher.completedEvent);
     }
 
     @Test
     void throwsWhenAppointmentNotFound() {
-        InMemoryState state = new InMemoryState();
-        ProcessAppointmentUseCase useCase = new ProcessAppointmentUseCase(
-                state, new CapturingRelational(), new CapturingPublisher());
-
-        assertThrows(IllegalStateException.class, () -> useCase.execute("nonexistent"));
+        assertThrows(IllegalStateException.class,
+                () -> new ProcessAppointmentUseCase(
+                        new InMemoryState(), new CapturingRelational(),
+                        new CapturingPublisher(), new CapturingNotifier())
+                        .execute("nonexistent"));
     }
 }

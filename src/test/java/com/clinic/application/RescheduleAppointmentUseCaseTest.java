@@ -5,6 +5,7 @@ import com.clinic.domain.entities.Appointment;
 import com.clinic.domain.entities.AppointmentStatus;
 import com.clinic.domain.entities.CountryISO;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.domain.ports.AppointmentStateRepository;
 import org.junit.jupiter.api.Test;
 
@@ -38,13 +39,24 @@ class RescheduleAppointmentUseCaseTest {
         public void publishCancelled(Appointment a) { }
     }
 
+    static class CapturingNotifier implements AppointmentNotifier {
+        Appointment rescheduledOld;
+        Appointment rescheduledNew;
+        public void notifyCompleted(Appointment a) {}
+        public void notifyCancelled(Appointment a) {}
+        public void notifyRescheduled(Appointment o, Appointment n) { rescheduledOld = o; rescheduledNew = n; }
+    }
+
     @Test
     void marksOldAsRescheduledAndCreatesNewPendingAppointment() {
         InMemoryState state = new InMemoryState();
         CapturingPublisher publisher = new CapturingPublisher();
-        state.save(new Appointment("old-id", "12345", 10, CountryISO.PE));
+        CapturingNotifier notifier = new CapturingNotifier();
+        Appointment original = new Appointment("old-id", "12345", 10, CountryISO.PE);
+        original.setContactEmail("test@example.com");
+        state.save(original);
 
-        Appointment newAppt = new RescheduleAppointmentUseCase(state, publisher).execute("old-id", 99);
+        Appointment newAppt = new RescheduleAppointmentUseCase(state, publisher, notifier).execute("old-id", 99);
 
         Appointment old = state.findById("old-id").orElseThrow();
         assertEquals(AppointmentStatus.RESCHEDULED, old.getStatus());
@@ -54,13 +66,17 @@ class RescheduleAppointmentUseCaseTest {
         assertEquals(99, newAppt.getScheduleId());
         assertEquals("12345", newAppt.getInsuredId());
         assertEquals(CountryISO.PE, newAppt.getCountryISO());
+        assertEquals("test@example.com", newAppt.getContactEmail());
         assertEquals(newAppt.getAppointmentId(), publisher.createdEvent.getAppointmentId());
+        assertEquals("old-id", notifier.rescheduledOld.getAppointmentId());
+        assertEquals(newAppt.getAppointmentId(), notifier.rescheduledNew.getAppointmentId());
     }
 
     @Test
     void throwsWhenAppointmentNotFound() {
         assertThrows(IllegalStateException.class,
-                () -> new RescheduleAppointmentUseCase(new InMemoryState(), new CapturingPublisher())
+                () -> new RescheduleAppointmentUseCase(
+                        new InMemoryState(), new CapturingPublisher(), new CapturingNotifier())
                         .execute("missing", 10));
     }
 
@@ -72,6 +88,7 @@ class RescheduleAppointmentUseCaseTest {
         state.save(completed);
 
         assertThrows(IllegalStateException.class,
-                () -> new RescheduleAppointmentUseCase(state, new CapturingPublisher()).execute("appt-2", 20));
+                () -> new RescheduleAppointmentUseCase(
+                        state, new CapturingPublisher(), new CapturingNotifier()).execute("appt-2", 20));
     }
 }

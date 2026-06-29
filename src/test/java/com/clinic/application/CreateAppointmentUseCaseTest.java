@@ -46,7 +46,7 @@ class CreateAppointmentUseCaseTest {
         CapturingPublisher publisher = new CapturingPublisher();
         CreateAppointmentUseCase useCase = new CreateAppointmentUseCase(state, publisher);
 
-        Appointment result = useCase.execute("12345", 10, CountryISO.PE);
+        Appointment result = useCase.execute("12345", 10, CountryISO.PE, "patient@example.com");
 
         assertNotNull(result.getAppointmentId());
         assertEquals(AppointmentStatus.PENDING, result.getStatus());

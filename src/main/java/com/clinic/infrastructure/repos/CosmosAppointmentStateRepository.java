@@ -141,6 +141,7 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
         item.createdAt = a.getCreatedAt() != null ? a.getCreatedAt().toString() : null;
         item.completedAt = a.getCompletedAt() != null ? a.getCompletedAt().toString() : null;
         item.cancelledAt = a.getCancelledAt() != null ? a.getCancelledAt().toString() : null;
+        item.contactEmail = a.getContactEmail();
         return item;
     }
 
@@ -154,6 +155,7 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
         if (item.createdAt != null) a.setCreatedAt(java.time.Instant.parse(item.createdAt));
         if (item.completedAt != null) a.setCompletedAt(java.time.Instant.parse(item.completedAt));
         if (item.cancelledAt != null) a.setCancelledAt(java.time.Instant.parse(item.cancelledAt));
+        a.setContactEmail(item.contactEmail);
         return a;
     }
 
@@ -167,5 +169,6 @@ public class CosmosAppointmentStateRepository implements AppointmentStateReposit
         public String createdAt;
         public String completedAt;
         public String cancelledAt;
+        public String contactEmail;
     }
 }

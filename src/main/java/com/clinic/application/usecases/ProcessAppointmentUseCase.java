@@ -3,6 +3,7 @@ package com.clinic.application.usecases;
 import com.clinic.domain.entities.Appointment;
 import com.clinic.domain.entities.AppointmentStatus;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.domain.ports.AppointmentRelationalRepository;
 import com.clinic.domain.ports.AppointmentStateRepository;
 
@@ -25,13 +26,16 @@ public class ProcessAppointmentUseCase {
     private final AppointmentStateRepository stateRepository;
     private final AppointmentRelationalRepository relationalRepository;
     private final AppointmentEventPublisher eventPublisher;
+    private final AppointmentNotifier notifier;
 
     public ProcessAppointmentUseCase(AppointmentStateRepository stateRepository,
                                      AppointmentRelationalRepository relationalRepository,
-                                     AppointmentEventPublisher eventPublisher) {
+                                     AppointmentEventPublisher eventPublisher,
+                                     AppointmentNotifier notifier) {
         this.stateRepository = stateRepository;
         this.relationalRepository = relationalRepository;
         this.eventPublisher = eventPublisher;
+        this.notifier = notifier;
     }
 
     public void execute(String appointmentId) {
@@ -46,9 +50,10 @@ public class ProcessAppointmentUseCase {
             return;
         }
 
-        appointment.markCompleted();              // domain rule
-        relationalRepository.persist(appointment); // MySQL (final store)
-        stateRepository.updateStatus(appointment); // Cosmos (state -> completed)
-        eventPublisher.publishCompleted(appointment); // Event Grid
+        appointment.markCompleted();
+        relationalRepository.persist(appointment);
+        stateRepository.updateStatus(appointment);
+        eventPublisher.publishCompleted(appointment);
+        notifier.notifyCompleted(appointment);
     }
 }

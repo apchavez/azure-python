@@ -17,6 +17,7 @@ public class Appointment {
     private Instant createdAt;
     private Instant completedAt;
     private Instant cancelledAt;
+    private String contactEmail;
 
     public Appointment() {
     }
@@ -79,4 +80,7 @@ public class Appointment {
 
     public Instant getCancelledAt() { return cancelledAt; }
     public void setCancelledAt(Instant cancelledAt) { this.cancelledAt = cancelledAt; }
+
+    public String getContactEmail() { return contactEmail; }
+    public void setContactEmail(String contactEmail) { this.contactEmail = contactEmail; }
 }

@@ -5,7 +5,10 @@ import com.clinic.application.usecases.CreateAppointmentUseCase;
 import com.clinic.application.usecases.GetAppointmentsUseCase;
 import com.clinic.application.usecases.ProcessAppointmentUseCase;
 import com.clinic.application.usecases.RescheduleAppointmentUseCase;
+import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.infrastructure.messaging.ServiceBusEventPublisher;
+import com.clinic.infrastructure.notifications.AcsAppointmentNotifier;
+import com.clinic.infrastructure.notifications.NoOpAppointmentNotifier;
 import com.clinic.infrastructure.repos.AzureSqlAppointmentRepository;
 import com.clinic.infrastructure.repos.CosmosAppointmentStateRepository;
 import com.clinic.shared.HealthStatus;
@@ -29,6 +32,7 @@ public final class AppContext {
     private static volatile GetAppointmentsUseCase getUseCase;
     private static volatile CancelAppointmentUseCase cancelUseCase;
     private static volatile RescheduleAppointmentUseCase rescheduleUseCase;
+    private static volatile AppointmentNotifier notifier;
 
     private AppContext() {
     }
@@ -86,6 +90,21 @@ public final class AppContext {
         return relationalRepo;
     }
 
+    private static AppointmentNotifier notifier() {
+        if (notifier == null) {
+            synchronized (AppContext.class) {
+                if (notifier == null) {
+                    String endpoint = env("ACS_ENDPOINT", "");
+                    String sender = env("ACS_SENDER_ADDRESS", "");
+                    notifier = endpoint.isBlank()
+                            ? new NoOpAppointmentNotifier()
+                            : new AcsAppointmentNotifier(endpoint, sender);
+                }
+            }
+        }
+        return notifier;
+    }
+
     // --- use cases ---
 
     public static CreateAppointmentUseCase createAppointment() {
@@ -104,7 +123,7 @@ public final class AppContext {
             synchronized (AppContext.class) {
                 if (processUseCase == null) {
                     processUseCase = new ProcessAppointmentUseCase(
-                            stateRepository(), relationalRepository(), eventPublisher());
+                            stateRepository(), relationalRepository(), eventPublisher(), notifier());
                 }
             }
         }
@@ -126,7 +145,7 @@ public final class AppContext {
         if (cancelUseCase == null) {
             synchronized (AppContext.class) {
                 if (cancelUseCase == null) {
-                    cancelUseCase = new CancelAppointmentUseCase(stateRepository(), eventPublisher());
+                    cancelUseCase = new CancelAppointmentUseCase(stateRepository(), eventPublisher(), notifier());
                 }
             }
         }
@@ -137,7 +156,7 @@ public final class AppContext {
         if (rescheduleUseCase == null) {
             synchronized (AppContext.class) {
                 if (rescheduleUseCase == null) {
-                    rescheduleUseCase = new RescheduleAppointmentUseCase(stateRepository(), eventPublisher());
+                    rescheduleUseCase = new RescheduleAppointmentUseCase(stateRepository(), eventPublisher(), notifier());
                 }
             }
         }

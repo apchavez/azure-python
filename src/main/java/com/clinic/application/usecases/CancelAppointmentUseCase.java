@@ -2,6 +2,7 @@ package com.clinic.application.usecases;
 
 import com.clinic.domain.entities.Appointment;
 import com.clinic.domain.ports.AppointmentEventPublisher;
+import com.clinic.domain.ports.AppointmentNotifier;
 import com.clinic.domain.ports.AppointmentStateRepository;
 
 import java.util.Optional;
@@ -10,11 +11,14 @@ public class CancelAppointmentUseCase {
 
     private final AppointmentStateRepository stateRepository;
     private final AppointmentEventPublisher eventPublisher;
+    private final AppointmentNotifier notifier;
 
     public CancelAppointmentUseCase(AppointmentStateRepository stateRepository,
-                                    AppointmentEventPublisher eventPublisher) {
+                                    AppointmentEventPublisher eventPublisher,
+                                    AppointmentNotifier notifier) {
         this.stateRepository = stateRepository;
         this.eventPublisher = eventPublisher;
+        this.notifier = notifier;
     }
 
     public void execute(String appointmentId) {
@@ -26,5 +30,6 @@ public class CancelAppointmentUseCase {
         appointment.markCancelled();
         stateRepository.updateStatus(appointment);
         eventPublisher.publishCancelled(appointment);
+        notifier.notifyCancelled(appointment);
     }
 }

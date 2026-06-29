@@ -11,4 +11,5 @@ public class CreateAppointmentRequest {
     public String insuredId;
     public int scheduleId;
     public String countryISO;
+    public String contactEmail;
 }

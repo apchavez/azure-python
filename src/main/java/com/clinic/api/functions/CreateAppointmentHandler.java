@@ -47,7 +47,7 @@ public class CreateAppointmentHandler {
             }
 
             Appointment appointment = AppContext.createAppointment()
-                    .execute(req.insuredId, req.scheduleId, CountryISO.valueOf(req.countryISO));
+                    .execute(req.insuredId, req.scheduleId, CountryISO.valueOf(req.countryISO), req.contactEmail);
             context.getLogger().info(String.format(
                     "appointment.accepted appointmentId=%s insuredId=%s countryISO=%s invocationId=%s",
                     appointment.getAppointmentId(), appointment.getInsuredId(),

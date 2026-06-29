@@ -40,9 +40,9 @@ class GetAppointmentsUseCaseTest {
         CreateAppointmentUseCase create = new CreateAppointmentUseCase(state, new NoOpPublisher());
         GetAppointmentsUseCase query = new GetAppointmentsUseCase(state);
 
-        create.execute("ins-10", 1, CountryISO.PE);
-        create.execute("ins-10", 2, CountryISO.CL);
-        create.execute("ins-99", 3, CountryISO.PE);
+        create.execute("ins-10", 1, CountryISO.PE, null);
+        create.execute("ins-10", 2, CountryISO.CL, null);
+        create.execute("ins-99", 3, CountryISO.PE, null);
 
         List<Appointment> results = query.byInsured("ins-10");
         assertEquals(2, results.size());
