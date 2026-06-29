@@ -1,6 +1,7 @@
 package com.clinic.domain.ports;
 
 import com.clinic.domain.entities.Appointment;
+import com.clinic.domain.shared.Page;
 
 import java.util.List;
 import java.util.Optional;
@@ -21,4 +22,10 @@ public interface AppointmentStateRepository {
     List<Appointment> findByInsuredId(String insuredId);
 
     void updateStatus(Appointment appointment);
+
+    // Default implementation returns all items as a single page.
+    // In-memory fakes in tests use this path; the Cosmos adapter overrides it.
+    default Page<Appointment> findByInsuredId(String insuredId, int pageSize, String continuationToken) {
+        return new Page<>(findByInsuredId(insuredId), null);
+    }
 }
