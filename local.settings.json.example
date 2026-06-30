@@ -13,6 +13,7 @@
     "SQL_HOST": "<your-sql-server>.database.windows.net",
     "SQL_DATABASE": "clinicdb",
     "SQL_USER": "<your-sql-user>",
-    "SQL_PASSWORD": "<your-sql-password>"
+    "SQL_PASSWORD": "<your-sql-password>",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "<your-app-insights-connection-string>"
   }
 }
