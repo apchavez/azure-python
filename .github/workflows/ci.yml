@@ -69,7 +69,7 @@ jobs:
           if-no-files-found: error
 
       - name: SonarCloud analysis
-        if: vars.SONAR_ORGANIZATION != ''
+        if: vars.SONAR_ORGANIZATION != '' && (github.event_name != 'pull_request' || github.actor != 'dependabot[bot]')
         run: |
           SONAR_ARGS="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }} -Dsonar.projectKey=apchavez_clean-arch-azure-functions-java"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
