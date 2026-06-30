@@ -73,7 +73,7 @@ jobs:
 
       - name: Deploy infrastructure
         id: infra
-        uses: azure/cli@v2
+        uses: azure/cli@v3
         with:
           inlineScript: |
             set -euo pipefail
