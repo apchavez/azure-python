@@ -1,0 +1,18 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "java",
+    "FUNCTIONS_EXTENSION_VERSION": "~4",
+    "COSMOS_ENDPOINT": "<your-cosmos-endpoint>",
+    "COSMOS_DATABASE": "clinicdb",
+    "COSMOS_CONTAINER": "appointments",
+    "SERVICEBUS__fullyQualifiedNamespace": "<your-sb-namespace>.servicebus.windows.net",
+    "SERVICEBUS_CREATED_TOPIC": "appointment-created",
+    "SERVICEBUS_COMPLETED_TOPIC": "appointment-completed",
+    "SQL_HOST": "<your-sql-server>.database.windows.net",
+    "SQL_DATABASE": "clinicdb",
+    "SQL_USER": "<your-sql-user>",
+    "SQL_PASSWORD": "<your-sql-password>"
+  }
+}
