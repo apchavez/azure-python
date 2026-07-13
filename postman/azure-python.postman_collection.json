@@ -1,0 +1,380 @@
+{
+  "info": {
+    "name": "Clinic Scheduling API — Azure Functions (Java)",
+    "description": "Colección de pruebas para la API de agendamiento migrada a Azure. Todos los endpoints bajo /appointments requieren un JWT Bearer (HS256, firmado con JWT_SECRET) — setea la variable de colección `token` antes de ejecutar. No existe endpoint de login en este proyecto (igual que el proyecto AWS Lambda hermano); genera el token offline con cualquier librería HS256 usando el mismo secreto configurado en Key Vault (ver README, sección 'Generate a token').",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Appointments",
+      "item": [
+        {
+          "name": "POST /appointments — Perú (PE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.test('Response has appointmentId', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.appointmentId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(body.status).to.eql('pending');",
+                  "    pm.collectionVariables.set('appointmentId', body.appointmentId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"insuredId\": \"12345\",\n  \"scheduleId\": 10,\n  \"countryISO\": \"PE\",\n  \"contactEmail\": \"patient@example.com\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "POST /appointments — Chile (CL)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.test('Response has appointmentId', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.appointmentId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(body.status).to.eql('pending');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"insuredId\": \"67890\",\n  \"scheduleId\": 22,\n  \"countryISO\": \"CL\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "POST /appointments — 400 countryISO inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Response has error field', () => {",
+                  "    pm.expect(pm.response.json().error).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"insuredId\": \"12345\",\n  \"scheduleId\": 10,\n  \"countryISO\": \"MX\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "POST /appointments — 400 scheduleId inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"insuredId\": \"12345\",\n  \"scheduleId\": 0,\n  \"countryISO\": \"PE\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "GET /appointments/{insuredId}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response has items array and nextCursor', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.items).to.be.an('array');",
+                  "    pm.expect(body).to.have.property('nextCursor');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/12345",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "12345"]
+            }
+          }
+        },
+        {
+          "name": "GET /appointments/{insuredId} — paginación (pageSize=2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Page size respected', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.items).to.be.an('array');",
+                  "    pm.expect(body.items.length).to.be.at.most(2);",
+                  "    if (body.nextCursor) {",
+                  "        pm.collectionVariables.set('nextCursor', body.nextCursor);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/12345?pageSize=2",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "12345"],
+              "query": [{ "key": "pageSize", "value": "2" }]
+            }
+          }
+        },
+        {
+          "name": "GET /appointments/{insuredId} — lista vacía",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Empty items array for unknown insuredId', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.items).to.be.an('array').and.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/NONEXISTENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "NONEXISTENT"]
+            }
+          }
+        },
+        {
+          "name": "GET /appointments/{appointmentId}/history",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is an array of events', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "{{appointmentId}}", "history"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /appointments/{appointmentId}/reschedule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.test('New appointmentId returned', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.newAppointmentId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(body.message).to.eql('Appointment rescheduled');",
+                  "    pm.collectionVariables.set('appointmentId', body.newAppointmentId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newScheduleId\": 99\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}/reschedule",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "{{appointmentId}}", "reschedule"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /appointments/{appointmentId}/reschedule — 400 body vacío",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Error message present', () => {",
+                  "    pm.expect(pm.response.json().error).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}/reschedule",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "{{appointmentId}}", "reschedule"]
+            }
+          }
+        },
+        {
+          "name": "DELETE /appointments/{appointmentId}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Cancellation confirmed', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.message).to.eql('Appointment cancelled');",
+                  "    pm.expect(body.appointmentId).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "{{appointmentId}}"]
+            }
+          }
+        },
+        {
+          "name": "DELETE /appointments/{appointmentId} — 404 no encontrado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('Error message present', () => {",
+                  "    pm.expect(pm.response.json().error).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/NONEXISTENT-ID",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "NONEXISTENT-ID"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Observability",
+      "item": [
+        {
+          "name": "GET /health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Overall status is UP', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql('UP');",
+                  "});",
+                  "pm.test('All components reported', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.components).to.include.keys('cosmosDb', 'azureSql', 'serviceBus');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:7071/api" },
+    { "key": "appointmentId", "value": "" },
+    { "key": "nextCursor", "value": "" },
+    { "key": "token", "value": "", "description": "JWT Bearer (HS256, JWT_SECRET). Sin token válido, todos los endpoints bajo /appointments devuelven 401." }
+  ]
+}
