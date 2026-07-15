@@ -1,4 +1,4 @@
-azure-functions==1.21.3
+azure-functions==2.2.0
 azure-cosmos==4.9.0
 azure-servicebus==7.14.2
 azure-communication-email==1.0.0
