@@ -507,7 +507,7 @@
 									"});",
 									"pm.test('All components reported', () => {",
 									"    const body = pm.response.json();",
-									"    pm.expect(body.components).to.include.keys('cosmosDb', 'azureSql', 'serviceBus');",
+									"    pm.expect(body.checks).to.include.keys('cosmosDb', 'azureSql', 'serviceBus');",
 									"});"
 								]
 							}
